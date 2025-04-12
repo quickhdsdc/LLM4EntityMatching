@@ -4,12 +4,7 @@ from datasets import load_dataset, Dataset, concatenate_datasets
 from data_representation import DeepMatcherProcessor
 class TaskDataLoader:
     def __init__(self, task_name:str, train_type:str, val_type:str, test_type:str=None, imbalance_ratio:int=1) -> None:
-        '''
-        params:task_name: str: name of the task
-        params:train_type: str: type of the training data in ['train','train_small']
-        params:val_type: str: type of the validation data in ['test']
-        params:test_type: str: type of the test data in ['test','test_big']
-        '''
+
         self.task_name = task_name
         self.train_type = train_type
         self.test_type = test_type
@@ -68,32 +63,12 @@ class TaskDataLoader:
 
 class TaskDataLoader_pairwise:
     def __init__(self, task_name:str, train_type:str, val_type:str, test_type:str=None, imbalance_ratio:int=1) -> None:
-        '''
-        params:task_name: str: name of the task
-        params:train_type: str: type of the training data in ['train','train_small']
-        params:val_type: str: type of the validation data in ['test']
-        params:test_type: str: type of the test data in ['test','test_big']
-        '''
+
         self.task_name = task_name
         self.train_type = train_type
         self.test_type = test_type
         self.val_type = val_type
         self.task_data_dir = Path('data/_entity matching') / task_name 
-        # train_df = pd.read_csv(self.task_data_dir/"train_df_pairwise.csv")
-        
-        # # balance the training data with ratio 
-        # pos_df = train_df[train_df['label'] == 1]
-        # neg_df = train_df[train_df['label'] == 0]
-        # max_neg_samples = len(pos_df) * imbalance_ratio
-
-        # if len(neg_df) > max_neg_samples:
-        #     neg_df_downsampled = neg_df.sample(n=max_neg_samples, random_state=42)
-        # else:
-        #     neg_df_downsampled = neg_df
-        # train_df_balanced = pd.concat([pos_df, neg_df_downsampled])
-        # train_df_balanced = train_df_balanced.sample(frac=1).reset_index(drop=True)        
-
-        # train_df_balanced.to_csv(self.task_data_dir/'train_df_pairwise.csv', index=False)
 
         data_files = {}
         for i in self.task_data_dir.iterdir():
@@ -127,12 +102,7 @@ class TaskDataLoader_pairwise:
 
 class TaskDataLoader_retrieval:
     def __init__(self, task_name:str, train_type:str, val_type:str, test_type:str, task_name_test = None, no_val:bool=False) -> None:
-        '''
-        params:task_name: str: name of the task
-        params:train_type: str: type of the training data in ['train','train_small']
-        params:val_type: str: type of the validation data in ['test']
-        params:test_type: str: type of the test data in ['test','test_big']
-        '''
+
         self.task_name = task_name
         self.train_type = train_type
         self.test_type = test_type
@@ -175,12 +145,7 @@ class TaskDataLoader_retrieval:
 
 class TaskDataLoader_aas:
     def __init__(self, task_name:str, train_type:str, val_type:str, test_type:str=None, imbalance_ratio:int=1, no_val:bool=False) -> None:
-        '''
-        params:task_name: str: name of the task
-        params:train_type: str: type of the training data in ['train','train_small']
-        params:val_type: str: type of the validation data in ['test']
-        params:test_type: str: type of the test data in ['test','test_big']
-        '''
+
         self.imbalance_ratio = imbalance_ratio
         self.task_name = task_name
         self.train_type = train_type
@@ -196,8 +161,6 @@ class TaskDataLoader_aas:
         self.data_files = data_files
         self.dataset = load_dataset("csv", data_files = data_files, keep_default_na=False, cache_dir=self.task_data_dir)
 
-        # self.dataset = load_dataset("lighteval/EntityMatching",self.task_name, cache_dir=self.task_data_dir)
-        #print('dataset: ', self.dataset)
         label_names = sorted(set(label for label in self.dataset["train_df"]["label"]))
         self.labels = label_names
         label2id, id2label = dict(), dict()
@@ -243,12 +206,7 @@ class TaskDataLoader_aas:
 
 class TaskDataLoader_aas_retrieval:
     def __init__(self, task_name:str, train_type:str, val_type:str, test_type:str=None, no_val:bool=True) -> None:
-        '''
-        params:task_name: str: name of the task
-        params:train_type: str: type of the training data in ['train','train_small']
-        params:val_type: str: type of the validation data in ['test']
-        params:test_type: str: type of the test data in ['test','test_big']
-        '''
+
         self.task_name = task_name
         self.train_type = train_type
         self.test_type = test_type
@@ -286,12 +244,7 @@ class TaskDataLoader_aas_retrieval:
 
 class TaskDataLoader_aas_retrieval_testOnly:
     def __init__(self, task_name:str, train_type:str, val_type:str, test_type:str=None) -> None:
-        '''
-        params:task_name: str: name of the task
-        params:train_type: str: type of the training data in ['train','train_small']
-        params:val_type: str: type of the validation data in ['test']
-        params:test_type: str: type of the test data in ['test','test_big']
-        '''
+
         self.task_name = task_name
         self.train_type = train_type
         self.test_type = test_type
