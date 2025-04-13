@@ -78,12 +78,12 @@ class EntityRetrieverMistral(MistralPreTrainedModel):
             filtered_example_indices = example_indices[1:]
             filtered_special_token_indices.append(filtered_example_indices)
 
-            positional_indices[batch_idx, :filtered_example_indices[0]] = 0  # Query
+            positional_indices[batch_idx, :filtered_example_indices[0]] = 0
             for i in range(len(filtered_example_indices) - 1):
                 start_idx = filtered_example_indices[i] + 1
                 end_idx = filtered_example_indices[i + 1]
-                positional_indices[batch_idx, start_idx:end_idx] = 1  # Candidates
-            positional_indices[batch_idx, filtered_example_indices[-1] + 1:] = 1  # Last candidate segment
+                positional_indices[batch_idx, start_idx:end_idx] = 1
+            positional_indices[batch_idx, filtered_example_indices[-1] + 1:] = 1
 
         query_embeddings = []
         batch_candidate_embeddings = []
@@ -95,18 +95,17 @@ class EntityRetrieverMistral(MistralPreTrainedModel):
                 raise ValueError(f"No special tokens found for batch index {batch_idx} beyond the initial <s> token.")
 
             # Extract query embedding (from start to the first special token delimiter)
-            query_embedding = hidden_states[batch_idx, :example_indices[0], :]  # Slice from start to the first special token delimiter
+            query_embedding = hidden_states[batch_idx, :example_indices[0], :]
             query_embedding = query_embedding[-1, :]
             query_embeddings.append(query_embedding)
 
             candidate_embeddings = []
             # Extract candidate embeddings (each segment between <s> tokens)
             for i in range(len(example_indices) - 1):
-                start_idx = example_indices[i] + 1  # Start index, +1 to move past the special token itself
-                end_idx = example_indices[i + 1]  # End at the next special token
-                # Extract candidate embedding between two special tokens
-                candidate_embedding = hidden_states[batch_idx, start_idx:end_idx, :]  # Shape: [seq_len_segment, hidden_size]
-                candidate_embedding = candidate_embedding[-1, :]  # Take the last token embedding directly
+                start_idx = example_indices[i] + 1 
+                end_idx = example_indices[i + 1]
+                candidate_embedding = hidden_states[batch_idx, start_idx:end_idx, :]
+                candidate_embedding = candidate_embedding[-1, :]
                 candidate_embeddings.append(candidate_embedding)
             start_idx = example_indices[-1] + 1
             candidate_embedding = hidden_states[batch_idx, start_idx:, :]
@@ -114,8 +113,7 @@ class EntityRetrieverMistral(MistralPreTrainedModel):
             actual_length = candidate_attention_mask.sum().item()
             last_candidate_embedding = candidate_embedding[actual_length - 1, :]
             candidate_embeddings.append(last_candidate_embedding)
-            # Stack candidate embeddings for this specific query
-            candidate_embeddings = torch.stack(candidate_embeddings, dim=0)  # Shape: [num_candidates, hidden_size]
+            candidate_embeddings = torch.stack(candidate_embeddings, dim=0)
             batch_candidate_embeddings.append(candidate_embeddings)
 
         # Stack all embeddings
@@ -130,29 +128,22 @@ class EntityRetrieverMistral(MistralPreTrainedModel):
 
         # Calculate the loss if labels are provided
         if labels is not None:
-            # Compute Cross-Entropy Loss (CEL)
             labels = labels.float().to(similarities.device)
-            labels_ce = torch.argmax(labels, dim=1)  # Convert one-hot labels to class indices
+            labels_ce = torch.argmax(labels, dim=1) 
             loss_ce = nn.CrossEntropyLoss()(similarities, labels_ce)
-            # Iterate over the batch to compute hard negatives and positive scores
-            loss_cl = 0  # Initialize contrastive loss
-            for i in range(labels.size(0)):  # Loop over batch size
-                # Positive and negative scores for the current batch
-                positive_scores = similarities[i, labels[i] == 1]  # Extract positive scores for batch i
-                negative_scores = similarities[i, labels[i] == 0]  # Extract negative scores for batch i
+            loss_cl = 0 
+            for i in range(labels.size(0)): 
+                positive_scores = similarities[i, labels[i] == 1]  
+                negative_scores = similarities[i, labels[i] == 0]
                 
-                if len(negative_scores) > 0:  # Only compute if there are negatives
-                    # Hard negative mining: Select top-k hardest negatives
-                    hard_negatives = torch.topk(negative_scores, min(self.args.top_k, len(negative_scores))).values  # Shape (top_k,)
-                    # Compute softmax-weighted contrastive loss
-                    differences = hard_negatives.unsqueeze(1) - positive_scores.unsqueeze(0) + self.args.margin  # Shape (top_k, num_positives)
+                if len(negative_scores) > 0:
+                    hard_negatives = torch.topk(negative_scores, min(self.args.top_k, len(negative_scores))).values 
+                    differences = hard_negatives.unsqueeze(1) - positive_scores.unsqueeze(0) + self.args.margin 
                     exp_differences = torch.exp(differences)
-                    softmax_weights = exp_differences / torch.sum(exp_differences, dim=0, keepdim=True)  # Normalize weights
-                    loss_cl += torch.sum(softmax_weights * F.relu(differences))  # Accumulate the loss
+                    softmax_weights = exp_differences / torch.sum(exp_differences, dim=0, keepdim=True)
+                    loss_cl += torch.sum(softmax_weights * F.relu(differences))
 
-            # Normalize the contrastive loss across the batch
             loss_cl = loss_cl / labels.size(0)
-            # Combine the losses
             loss = self.args.alpha * loss_ce + (1 - self.args.alpha) * loss_cl
         else:
             loss = None

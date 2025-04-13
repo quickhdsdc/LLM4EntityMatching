@@ -24,7 +24,7 @@ class EntityRetrieverMPNet(MPNetPreTrainedModel):
         self.args = args
 
     def mean_pooling(self, last_hidden_state, attention_mask):
-        device = last_hidden_state.device  # Get the device of the last_hidden_state
+        device = last_hidden_state.device 
         input_mask_expanded = attention_mask.unsqueeze(-1).expand(last_hidden_state.size()).to(device).float()
         sum_embeddings = torch.sum(last_hidden_state * input_mask_expanded, 1)
         sum_mask = torch.clamp(input_mask_expanded.sum(1), min=1e-9)
@@ -86,59 +86,25 @@ class EntityRetrieverMPNet(MPNetPreTrainedModel):
             similarities = similarities.float()
             labels = labels.to(similarities.device)
             if self.args.loss_type == 'CMRL':    
-                labels_ce = torch.argmax(labels, dim=1)  # Convert one-hot labels to class indices
+                labels_ce = torch.argmax(labels, dim=1)  
                 loss_ce = nn.CrossEntropyLoss()(similarities, labels_ce)
-                # Iterate over the batch to compute hard negatives and positive scores
-                loss_cl = 0  # Initialize contrastive loss
-                for i in range(labels.size(0)):  # Loop over batch size
-                    # Positive and negative scores for the current batch
-                    positive_scores = similarities[i, labels[i] == 1]  # Extract positive scores for batch i
-                    negative_scores = similarities[i, labels[i] == 0]  # Extract negative scores for batch i
+                loss_cl = 0 
+                for i in range(labels.size(0)):
+                    positive_scores = similarities[i, labels[i] == 1] 
+                    negative_scores = similarities[i, labels[i] == 0]
                     
-                    if len(negative_scores) > 0:  # Only compute if there are negatives
-                        # Hard negative mining: Select top-k hardest negatives
-                        hard_negatives = torch.topk(negative_scores, min(self.args.top_k, len(negative_scores))).values  # Shape (top_k,)
-                        # Compute softmax-weighted contrastive loss
-                        differences = hard_negatives.unsqueeze(1) - positive_scores.unsqueeze(0) + self.args.margin  # Shape (top_k, num_positives)
+                    if len(negative_scores) > 0:
+                        hard_negatives = torch.topk(negative_scores, min(self.args.top_k, len(negative_scores))).values
+                        differences = hard_negatives.unsqueeze(1) - positive_scores.unsqueeze(0) + self.args.margin
                         exp_differences = torch.exp(differences)
-                        softmax_weights = exp_differences / torch.sum(exp_differences, dim=0, keepdim=True)  # Normalize weights
-                        loss_cl += torch.sum(softmax_weights * F.relu(differences))  # Accumulate the loss
-                # Normalize the contrastive loss across the batch
+                        softmax_weights = exp_differences / torch.sum(exp_differences, dim=0, keepdim=True)
+                        loss_cl += torch.sum(softmax_weights * F.relu(differences))
                 loss_cl = loss_cl / labels.size(0)
-                # Combine the losses
                 loss = self.args.alpha * loss_ce + (1 - self.args.alpha) * loss_cl
 
             elif self.args.loss_type == 'CEL':
                 labels = torch.argmax(labels, dim=1)
                 loss = nn.CrossEntropyLoss()(similarities, labels)
-            elif self.args.loss_type == 'CL':
-                # Contrastive Loss computation
-                positive_pairs = labels * torch.pow(similarities, 2)
-                negative_pairs = (1 - labels) * torch.pow(F.relu(1 - similarities), 2)
-                loss = torch.mean(positive_pairs + negative_pairs)
-            elif self.args.loss_type == 'TL':
-                margin = 1.0  # Hyperparameter for the margin
-                positive_pairs = labels * similarities
-                negative_pairs = (1 - labels) * similarities
-                # Triplet loss encourages a positive pair to have higher similarity than any negative pair by at least a margin
-                loss = torch.mean(F.relu(negative_pairs - positive_pairs + margin))
-            elif self.args.loss_type == 'BCE':
-                softmax_similarities = F.softmax(similarities, dim=1)  # Normalize across candidates
-                loss = nn.BCELoss()(softmax_similarities, labels)
-            elif self.args.loss_type == 'HL':
-                margin = 1.0  # Hyperparameter for the margin
-                positive_pairs = labels * similarities
-                negative_pairs = (1 - labels) * similarities
-                loss = torch.mean(F.relu(negative_pairs - positive_pairs + margin))
-            elif self.args.loss_type == 'RL':
-                margin = 1.0
-                # Normalize similarities for stability
-                softmax_similarities = F.softmax(similarities, dim=1)
-                # Define ranking penalties
-                positive_scores = (softmax_similarities * labels).sum(dim=1)  # Sum scores for positive candidates
-                ranking_penalty = (1 - labels) * softmax_similarities  # Scores for negative candidates
-                # Penalize negative scores being higher than positives
-                loss = torch.mean(F.relu(ranking_penalty.sum(dim=1) - positive_scores + margin))
         else:
             loss = None
 

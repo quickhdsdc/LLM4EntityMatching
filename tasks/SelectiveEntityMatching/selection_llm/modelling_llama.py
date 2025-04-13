@@ -88,37 +88,30 @@ class EntityRetrieverMistral(MistralPreTrainedModel):
             similarities = similarities.float()
             labels = labels.to(similarities.device)
             if self.args.loss_type == 'CMRL':    
-                labels_ce = torch.argmax(labels, dim=1)  # Convert one-hot labels to class indices
+                labels_ce = torch.argmax(labels, dim=1)
                 loss_ce = nn.CrossEntropyLoss()(similarities, labels_ce)
-                # Iterate over the batch to compute hard negatives and positive scores
-                loss_cl = 0  # Initialize contrastive loss
-                for i in range(labels.size(0)):  # Loop over batch size
-                    # Positive and negative scores for the current batch
-                    positive_scores = similarities[i, labels[i] == 1]  # Extract positive scores for batch i
-                    negative_scores = similarities[i, labels[i] == 0]  # Extract negative scores for batch i
+                loss_cl = 0 
+                for i in range(labels.size(0)):
+                    positive_scores = similarities[i, labels[i] == 1]
+                    negative_scores = similarities[i, labels[i] == 0]
                     
-                    if len(negative_scores) > 0:  # Only compute if there are negatives
-                        # Hard negative mining: Select top-k hardest negatives
-                        hard_negatives = torch.topk(negative_scores, min(self.args.top_k, len(negative_scores))).values  # Shape (top_k,)
-                        # Compute softmax-weighted contrastive loss
-                        differences = hard_negatives.unsqueeze(1) - positive_scores.unsqueeze(0) + self.args.margin  # Shape (top_k, num_positives)
+                    if len(negative_scores) > 0:
+                        hard_negatives = torch.topk(negative_scores, min(self.args.top_k, len(negative_scores))).values  
+                        differences = hard_negatives.unsqueeze(1) - positive_scores.unsqueeze(0) + self.args.margin  
                         exp_differences = torch.exp(differences)
-                        softmax_weights = exp_differences / torch.sum(exp_differences, dim=0, keepdim=True)  # Normalize weights
-                        loss_cl += torch.sum(softmax_weights * F.relu(differences))  # Accumulate the loss
-                # Normalize the contrastive loss across the batch
+                        softmax_weights = exp_differences / torch.sum(exp_differences, dim=0, keepdim=True)
+                        loss_cl += torch.sum(softmax_weights * F.relu(differences))  
                 loss_cl = loss_cl / labels.size(0)
-                # Combine the losses
                 loss = (1 - self.args.alpha) * loss_ce + self.args.alpha * loss_cl
             elif self.args.loss_type == 'InfoNCE':
-                # Expect labels as one-hot: shape (batch_size, num_candidates)
-                labels_ce = torch.argmax(labels, dim=1)  # Convert to index
+                labels_ce = torch.argmax(labels, dim=1)
                 temperature = self.args.temperature if hasattr(self.args, 'temperature') else 0.02
                 logits = similarities / temperature
                 loss = nn.CrossEntropyLoss()(logits, labels_ce)
             elif self.args.loss_type == 'Focus':
-                labels_ce = torch.argmax(labels, dim=1)  # Convert to index
+                labels_ce = torch.argmax(labels, dim=1)
                 probs = F.softmax(similarities, dim=1)
-                pt = probs[torch.arange(labels.size(0)), labels_ce]  # Get probs for the correct class
+                pt = probs[torch.arange(labels.size(0)), labels_ce]
                 gamma = self.args.focus_gamma if hasattr(self.args, 'focus_gamma') else 2.0
                 focus_weights = (1 - pt) ** gamma
                 loss_ce = nn.CrossEntropyLoss(reduction='none')(similarities, labels_ce)
