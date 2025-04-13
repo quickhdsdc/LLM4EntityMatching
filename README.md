@@ -5,3 +5,4 @@ In the paper "Fine-Tuning Large Language Models with Contrastive Margin Ranking 
 ### Method
 ![](/resource/Mistral4SelectEM.png)
 *Fig. 3. Illustration of the end-to-end selective EM (left) and the fine-tuning strategy for Mistral4SelectEM (right). The entire process involves a single set of LLM weights, which is presented as the green block. The “red” adapter is the fine-tuned LoRA weights, which are merged with the embedding model in the inference stage for selective EM*
+This method is implemented in /tasks/SelectiveEntityMatching/selection_llm. The comparative methods are implemented in selection_plm, selection_gpt, and cross_selection_llm. The selection of the methods is controlled by the main args.method.
