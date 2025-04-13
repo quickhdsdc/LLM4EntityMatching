@@ -40,4 +40,4 @@ data_representation.py contains the relevant functions construct the original EM
 'eval_type': "retrieval",  # Options: "retrieval", "pairwise" ("pairwise" means the model is trained by contrastive learning, but inference for pairwise classification. But this does not work well. has been removed.)
 
 ## Pairwise Entity Matching
-In the paper "Dual data mapping with fine-tuned large language models and asset administration shells toward interoperable knowledge representation" https://www.sciencedirect.com/science/article/pii/S0736584524001248?via%3Dihub
+In the paper "[Dual data mapping with fine-tuned large language models and asset administration shells toward interoperable knowledge representation]( https://www.sciencedirect.com/science/article/pii/S0736584524001248?via%3Dihub)", we propose two approaches to fine-tune LLMs for pairwise EM.
