@@ -10,13 +10,21 @@ def run_experiments(args):
     print('task_name: ', args.task_name)
     print('method: ', args.method)
     print('####### 1.load task dataset....')
-    from tasks.task_data_loader import TaskDataLoader
-    task_data_loader = TaskDataLoader(task_name=args.task_name, train_type=args.train_type, val_type=args.val_type, test_type=args.test_type, imbalance_ratio=args.imbalance_ratio)
-    train_ds, val_ds, test_ds = task_data_loader.load_data()
-    labels, label2id, id2label = task_data_loader.get_labels() 
-    from tasks.task_data_loader import TaskDataLoader_pairwise
-    task_data_loader = TaskDataLoader_pairwise(task_name=args.task_name, train_type=args.train_type + '_pairwise', val_type=args.val_type + '_pairwise', test_type=args.test_type + '_pairwise', imbalance_ratio=args.imbalance_ratio)
-    _, _, test_ds_pairwise = task_data_loader.load_data()
+    if 'AAS' in args.task_name:
+        from tasks.task_data_loader import TaskDataLoader_aas
+        task_data_loader = TaskDataLoader_aas(task_name=args.task_name, train_type=args.train_type, val_type=args.val_type, test_type=args.test_type, imbalance_ratio=args.imbalance_ratio, no_val=True)
+        train_ds, val_ds, test_ds = task_data_loader.load_data()
+        labels, label2id, id2label = task_data_loader.get_labels() 
+        task_data_loader = TaskDataLoader_aas(task_name=args.task_name, train_type=args.train_type + '_pairwise', val_type=args.val_type + '_pairwise', test_type=args.test_type + '_pairwise', imbalance_ratio=args.imbalance_ratio, no_val=True)
+        _, _, test_ds_pairwise = task_data_loader.load_data()
+    else:
+        from tasks.task_data_loader import TaskDataLoader
+        task_data_loader = TaskDataLoader(task_name=args.task_name, train_type=args.train_type, val_type=args.val_type, test_type=args.test_type, imbalance_ratio=args.imbalance_ratio)
+        train_ds, val_ds, test_ds = task_data_loader.load_data()
+        labels, label2id, id2label = task_data_loader.get_labels() 
+        from tasks.task_data_loader import TaskDataLoader_pairwise
+        task_data_loader = TaskDataLoader_pairwise(task_name=args.task_name, train_type=args.train_type + '_pairwise', val_type=args.val_type + '_pairwise', test_type=args.test_type + '_pairwise')
+        _, _, test_ds_pairwise = task_data_loader.load_data()
 
     print('####### 2.load model and tokenizer....')
     model_name_version_dic = {
@@ -121,13 +129,13 @@ def run_experiments(args):
         output_dir.mkdir()
     print('output_dir: ', output_dir)
 
-    if args.flag_fine_tuning and 'gpt' not in args.method:
+    if args.flag_fine_tuning and 'gpt' not in args.method and 'retrieval' not in args.eval_type and 'new' not in args.eval_type:
         print('####### 4.fine-tune model....')
         from tasks.task_model_finetuner import TaskModelFinetuner
         model_finetuner = TaskModelFinetuner(task_name=args.task_name, method=args.method).model_finetuner
         if args.method in ['finetuning_roberta_c']:
             model_finetuner.fine_tune(model, tokenizer, train_ds, val_ds, args.per_device_train_batch_size, output_dir, args.train_epochs, learning_rate=args.learning_rate)
-        else:
+        elif args.method in ['finetuning_llm','finetuning_llm_c']:
             model_finetuner.fine_tune(model, tokenizer, train_ds, val_ds,
                                   args.lora_r, args.lora_alpha, args.lora_dropout, args.bias, task_type,
                                   args.per_device_train_batch_size, output_dir, args.train_epochs,
@@ -137,19 +145,18 @@ def run_experiments(args):
     from tasks.task_evaluater import TaskEvaluater
     Evaluater = TaskEvaluater(task_name=args.task_name, method=args.method).evaluater
 
-    file_inference = 'inference.jsonl'
-    if not args.flag_fine_tuning or 'gpt' in args.method:
-        if args.eval_type == 'pairwise_old':
-            if args.method in ['finetuning_llm']:
-                Evaluater.evaluate(test=test_ds, labels=labels, label2id=label2id, id2label=id2label, output_dir=output_dir, response_key=response_key, eval_type=args.eval_type, model=model, tokenizer=tokenizer, flag_fine_tuning=args.flag_fine_tuning)
-            else:
-                Evaluater.evaluate(test=test_ds, labels=labels, label2id=label2id, id2label=id2label, model_dir=output_dir, model=model, tokenizer=tokenizer, max_length=args.max_length, eval_type=args.eval_type, flag_fine_tuning=args.flag_fine_tuning)
-        else:
-            if args.method in ['finetuning_llm']:
-                Evaluater.evaluate(test=test_ds_pairwise, labels=labels, label2id=label2id, id2label=id2label, output_dir=output_dir, response_key=response_key, eval_type=args.eval_type, model=model, tokenizer=tokenizer, flag_fine_tuning=args.flag_fine_tuning)
-            else:            
-                Evaluater.evaluate(test=test_ds_pairwise, labels=labels, label2id=label2id, id2label=id2label, model_dir=output_dir, model=model, tokenizer=tokenizer, max_length=args.max_length, eval_type=args.eval_type, flag_fine_tuning=args.flag_fine_tuning)
-             
+    # # if not args.flag_fine_tuning or 'gpt' in args.method:
+    # if args.eval_type == 'pairwise_old':
+    #     if args.method in ['finetuning_llm']:
+    #         Evaluater.evaluate(test=test_ds, labels=labels, label2id=label2id, id2label=id2label, output_dir=output_dir, response_key=response_key, eval_type=args.eval_type, model=model, tokenizer=tokenizer, flag_fine_tuning=args.flag_fine_tuning)
+    #     else:
+    #         Evaluater.evaluate(test=test_ds, labels=labels, label2id=label2id, id2label=id2label, model_dir=output_dir, model=model, tokenizer=tokenizer, max_length=args.max_length, eval_type=args.eval_type, flag_fine_tuning=args.flag_fine_tuning)
+    # else:
+    #     if args.method in ['finetuning_llm']:
+    #         Evaluater.evaluate(test=test_ds_pairwise, labels=labels, label2id=label2id, id2label=id2label, output_dir=output_dir, response_key=response_key, eval_type=args.eval_type, model=model, tokenizer=tokenizer, flag_fine_tuning=args.flag_fine_tuning)
+    #     else:            
+    #         Evaluater.evaluate(test=test_ds_pairwise, labels=labels, label2id=label2id, id2label=id2label, model_dir=output_dir, model=model, tokenizer=tokenizer, max_length=args.max_length, eval_type=args.eval_type, flag_fine_tuning=args.flag_fine_tuning)
+            
     for d in output_dir.iterdir():
         if d.is_dir() and d.name.startswith("checkpoint"):
             print(f"Evaluating {d}")
@@ -170,22 +177,57 @@ if __name__ == "__main__":
 
     args_dict = {
         # dataset parameters
-        'task_name': 'Textual_Abt-Buy',  # Options: 'Structured_Amazon-Google', 'Structured_Walmart-Amazon', 'Textual_Abt-Buy', 'AAS_ECLASS_new'
+        'task_name': 'Structured_Amazon-Google',  # Options: 'Structured_Amazon-Google', 'Structured_Walmart-Amazon', 'Textual_Abt-Buy', 'AAS_ECLASS_new'
         'task_name_test': None,
         'train_type': 'train_df',
         'val_type': 'valid_df',
         'test_type': 'test_df',
-        'imbalance_ratio': 3,
+        'imbalance_ratio': 1,
         # method parameters
-        'method': 'evaluate_gpt', # evaluate_gpt, finetuning_llm, finetuning_llm_c, finetuning_roberta_c
-        'model_dic_key': 'gpt4', # roberta-large, llama2-13b, llama2-13b-chat, gpt4
+        'method': 'finetuning_llm_c', # evaluate_gpt, finetuning_llm, finetuning_llm_c, finetuning_roberta_c
+        'model_dic_key': 'llama2-13b', # roberta-large, llama2-13b, llama2-13b-chat, gpt4
         'input_type': 'inst_text_st_on', # 'text_st_on', 'text_on', 'inst_text_st_on', 'ICL_text_st_on', 'CoT_text_st_on'
         'device_map': "auto",
         'max_length': 512, 
         'num_neg': 9,
         # LoRA parameters
-        'lora_r': 128,
-        'lora_alpha': 128,
+        'lora_r': 32,
+        'lora_alpha': 32,
+        'target_modules': "all-linear",
+        # Training parameters
+        'learning_rate': 2e-4, # 3e-5 fpr PLM, 2e-4 for LLM
+        'lora_dropout': 0.1,
+        'bias': "none",
+        'per_device_train_batch_size': 32,
+        'train_epochs': 10,
+        'flag_fine_tuning': True,
+        'create_dir': False,
+        'eval_type': "pairwise_old",  # "retrieval", "pairwise_old", "pairwise_new"
+    }
+    args = collections.namedtuple("args", args_dict.keys())(*args_dict.values())
+    run_experiments(args)
+    gc.collect()
+    torch.cuda.empty_cache()
+
+
+    args_dict = {
+        # dataset parameters
+        'task_name': 'AAS_ECLASS_new',  # Options: 'Structured_Amazon-Google', 'Structured_Walmart-Amazon', 'Textual_Abt-Buy', 'AAS_ECLASS_new'
+        'task_name_test': None,
+        'train_type': 'train_df',
+        'val_type': 'valid_df',
+        'test_type': 'test_df',
+        'imbalance_ratio': 1,
+        # method parameters
+        'method': 'finetuning_llm_c', # evaluate_gpt, finetuning_llm, finetuning_llm_c, finetuning_roberta_c
+        'model_dic_key': 'llama2-13b', # roberta-large, llama2-13b, llama2-13b-chat, gpt4
+        'input_type': 'inst_text_st_on', # 'text_st_on', 'text_on', 'inst_text_st_on', 'ICL_text_st_on', 'CoT_text_st_on'
+        'device_map': "auto",
+        'max_length': 512, 
+        'num_neg': 9,
+        # LoRA parameters
+        'lora_r': 64,
+        'lora_alpha': 64,
         'target_modules': "all-linear",
         # Training parameters
         'learning_rate': 2e-4, # 3e-5 fpr PLM, 2e-4 for LLM
@@ -196,6 +238,41 @@ if __name__ == "__main__":
         'flag_fine_tuning': True,
         'create_dir': False,
         'eval_type': "retrieval",  # "retrieval", "pairwise_old", "pairwise_new"
+    }
+    args = collections.namedtuple("args", args_dict.keys())(*args_dict.values())
+    run_experiments(args)
+    gc.collect()
+    torch.cuda.empty_cache()
+
+
+    args_dict = {
+        # dataset parameters
+        'task_name': 'AAS_ECLASS_new',  # Options: 'Structured_Amazon-Google', 'Structured_Walmart-Amazon', 'Textual_Abt-Buy', 'AAS_ECLASS_new'
+        'task_name_test': None,
+        'train_type': 'train_df',
+        'val_type': 'valid_df',
+        'test_type': 'test_df',
+        'imbalance_ratio': 1,
+        # method parameters
+        'method': 'finetuning_llm_c', # evaluate_gpt, finetuning_llm, finetuning_llm_c, finetuning_roberta_c
+        'model_dic_key': 'llama2-13b', # roberta-large, llama2-13b, llama2-13b-chat, gpt4
+        'input_type': 'inst_text_st_on', # 'text_st_on', 'text_on', 'inst_text_st_on', 'ICL_text_st_on', 'CoT_text_st_on'
+        'device_map': "auto",
+        'max_length': 512, 
+        'num_neg': 9,
+        # LoRA parameters
+        'lora_r': 64,
+        'lora_alpha': 64,
+        'target_modules': "all-linear",
+        # Training parameters
+        'learning_rate': 2e-4, # 3e-5 fpr PLM, 2e-4 for LLM
+        'lora_dropout': 0.1,
+        'bias': "none",
+        'per_device_train_batch_size': 32,
+        'train_epochs': 10,
+        'flag_fine_tuning': True,
+        'create_dir': False,
+        'eval_type': "pairwise_new",  # "retrieval", "pairwise_old", "pairwise_new"
     }
     args = collections.namedtuple("args", args_dict.keys())(*args_dict.values())
     run_experiments(args)
